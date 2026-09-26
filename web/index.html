@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>互动 ASMR</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>互动 ASMR</h1>
+      <p class="hint">请戴上耳机 · 桌面浏览器效果最佳</p>
+    </header>
+
+    <section id="setup" class="panel">
+      <label class="field">
+        <span>角色</span>
+        <select id="character"></select>
+      </label>
+      <p id="scenario" class="scenario"></p>
+      <label class="field">
+        <span>环境音</span>
+        <select id="ambience">
+          <option value="rain">雨声</option>
+          <option value="fire">壁炉</option>
+          <option value="none">无</option>
+        </select>
+      </label>
+      <div class="actions">
+        <button id="start" class="primary">开始</button>
+        <button id="open-test" class="ghost">空间感盲听测试</button>
+      </div>
+      <p id="error" class="error" hidden></p>
+    </section>
+
+    <section id="live" class="panel" hidden>
+      <div class="orb-wrap"><div id="orb" class="orb" data-state="intro"></div></div>
+      <p id="state-label" class="state-label">开场</p>
+      <div class="meter" title="麦克风电平"><div id="mic-level"></div></div>
+      <div id="subtitles" class="subtitles" aria-live="polite"></div>
+      <div class="controls">
+        <label class="slider"><span>人声</span><input id="voice-volume" type="range" min="0" max="1.5" step="0.01" value="1"></label>
+        <label class="slider"><span>环境</span><input id="ambience-volume" type="range" min="0" max="2" step="0.01" value="1"></label>
+        <label class="check"><input id="show-subtitles" type="checkbox"> 显示字幕</label>
+        <button id="stop" class="ghost">结束</button>
+      </div>
+    </section>
+
+    <section id="test" class="panel" hidden>
+      <h2>空间感盲听测试</h2>
+      <p class="scenario">闭上眼睛，点“播放”，然后选出声音出现的位置。共 8 次。</p>
+      <div class="actions">
+        <button id="test-play" class="primary">播放</button>
+        <button id="test-close" class="ghost">返回</button>
+      </div>
+      <div id="test-guesses" class="guesses">
+        <button data-guess="left,near">左耳贴近</button>
+        <button data-guess="right,near">右耳贴近</button>
+        <button data-guess="front,near">正前方贴近</button>
+        <button data-guess="behind,mid">身后</button>
+        <button data-guess="front,far">前方远处</button>
+      </div>
+      <p id="test-result" class="scenario"></p>
+    </section>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

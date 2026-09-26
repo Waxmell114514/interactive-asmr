@@ -1,0 +1,38 @@
+[project]
+name = "interactive-asmr"
+version = "0.1.0"
+description = "互动 ASMR：戴耳机、以语音进行的角色扮演 ASMR（STT → LLM → TTS 级联 + 浏览器 HRTF 空间化）"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "httpx>=0.27",
+    "openai>=1.40",
+    "numpy>=1.26",
+    "python-dotenv>=1.0",
+    # 只用 Pipecat 的 Silero VAD 与 Smart Turn v3 分析器（模型文件随包附带），编排自写。
+    "pipecat-ai[silero]>=1.12,<2",
+    "soxr>=0.5",
+]
+
+[project.optional-dependencies]
+# 本地 STT：SenseVoice（首选）
+sensevoice = ["funasr>=1.1.0", "torch", "torchaudio"]
+# 本地 STT：faster-whisper（备选）
+whisper = ["faster-whisper>=1.0"]
+dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+asmr-server = "asmr.server:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["asmr*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

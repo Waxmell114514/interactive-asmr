@@ -1,0 +1,23 @@
+{
+  "url": "http://127.0.0.1:50000",
+  "version": 3,
+  "sample_rate": 24000,
+  "system_prompt": "You are a helpful assistant.",
+  "instruct_template": "请用{style}的语气说这句话。",
+  "instructions": [
+    {"match": ["极轻", "气声"], "instruction": "Please say a sentence in a very soft voice."},
+    {"match": ["很慢"], "instruction": "请用尽可能慢地语速说一句话。"}
+  ],
+  "refs": [
+    {
+      "match": ["耳语", "气声", "悄悄", "极轻"],
+      "audio": "refs/whisper.wav",
+      "text": "这里填耳语参考音频里说的原话。"
+    },
+    {
+      "audio": "refs/normal.wav",
+      "text": "这里填普通语气参考音频里说的原话。",
+      "default": true
+    }
+  ]
+}

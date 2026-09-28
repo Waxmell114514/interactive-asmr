@@ -95,3 +95,22 @@ def test_create_tts_picks_backend(tmp_path):
     path.write_text(_json.dumps(example), encoding="utf-8")
     settings.gptsovits_config = path
     assert create_tts(settings, plain).config.pick_ref("耳语").audio.endswith("whisper.wav")
+
+
+def test_create_tts_cosyvoice(tmp_path):
+    import json as _json
+
+    import pytest
+
+    from asmr.character import Character
+    from asmr.server import create_tts
+    from asmr.tts_cosyvoice import CosyVoiceTTS
+
+    settings = Settings(tts_backend="cosyvoice", cosyvoice_url="http://gpu:50000")
+    with pytest.raises(RuntimeError, match="cosyvoice"):
+        create_tts(settings, Character(id="a", name="甲"))
+    example = _json.loads((ROOT / "cosyvoice.example.json").read_text(encoding="utf-8"))
+    del example["url"]
+    tts = create_tts(settings, Character(id="b", name="乙", cosyvoice=example))
+    assert isinstance(tts, CosyVoiceTTS) and tts.config.url == "http://gpu:50000"
+    assert tts.cache_key.startswith("cosyvoice|")

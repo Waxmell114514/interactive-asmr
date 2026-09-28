@@ -52,8 +52,21 @@ class WebSocketTransport:
 
 
 def create_tts(settings: Settings, character: Character):
-    """按 TTS_BACKEND 为角色创建 TTS。GPT-SoVITS 配置优先取角色卡，其次 GPTSOVITS_CONFIG。"""
+    """按 TTS_BACKEND 为角色创建 TTS。本地后端的配置优先取角色卡，其次 *_CONFIG 指向的 JSON。"""
     s = settings
+    if s.tts_backend == "cosyvoice":
+        from .tts_cosyvoice import CosyVoiceConfig, CosyVoiceTTS
+
+        if character.cosyvoice:
+            config = CosyVoiceConfig.from_dict(character.cosyvoice, url=s.cosyvoice_url)
+        elif s.cosyvoice_config:
+            config = CosyVoiceConfig.from_file(s.cosyvoice_config, url=s.cosyvoice_url)
+        else:
+            raise RuntimeError(
+                f"角色 {character.name} 没有 cosyvoice 配置：在角色卡 extensions.asmr.cosyvoice 里写，"
+                "或设置 COSYVOICE_CONFIG 指向配置 JSON"
+            )
+        return CosyVoiceTTS(config)
     if s.tts_backend == "gptsovits":
         from .tts_gptsovits import GPTSoVITSConfig, GPTSoVITSTTS
 
@@ -75,7 +88,7 @@ def create_tts(settings: Settings, character: Character):
             style_mode=s.tts_style_mode,
             base_url=s.gemini_base_url,
         )
-    raise ValueError(f"未知 TTS 后端: {s.tts_backend}（可选 gemini / gptsovits）")
+    raise ValueError(f"未知 TTS 后端: {s.tts_backend}（可选 gemini / gptsovits / cosyvoice）")
 
 
 class Runtime:

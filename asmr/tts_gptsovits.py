@@ -39,8 +39,8 @@ from pathlib import Path
 from typing import AsyncIterator
 
 import httpx
-import numpy as np
 
+from .refs import PcmStream, RefAudio, parse_refs, pick_ref
 from .tts import SAMPLE_RATE, TTSError
 
 log = logging.getLogger(__name__)
@@ -49,15 +49,6 @@ log = logging.getLogger(__name__)
 _PAUSES = {"short pause": "，", "long pause": "……", "breath": "，"}
 _TAG_RE = re.compile(r"<([^<>]*)>")
 _SPEAKABLE_RE = re.compile(r"[\w一-鿿]")
-
-
-@dataclass
-class RefAudio:
-    audio: str
-    text: str = ""
-    lang: str = "zh"
-    match: list[str] = field(default_factory=list)
-    default: bool = False
 
 
 @dataclass
@@ -78,13 +69,11 @@ class GPTSoVITSConfig:
     @classmethod
     def from_dict(cls, data: dict, *, url: str = "") -> "GPTSoVITSConfig":
         data = dict(data)
-        refs = [RefAudio(**ref) for ref in data.pop("refs", [])]
+        refs = parse_refs(data.pop("refs", []))
         known = {k: v for k, v in data.items() if k in cls.__dataclass_fields__}
         cfg = cls(**known, refs=refs)
         if url and "url" not in data:
             cfg.url = url
-        if not cfg.refs:
-            raise ValueError("GPT-SoVITS 配置里至少要有一段参考音频（refs）")
         return cfg
 
     @classmethod
@@ -92,10 +81,7 @@ class GPTSoVITSConfig:
         return cls.from_dict(json.loads(Path(path).read_text(encoding="utf-8")), url=url)
 
     def pick_ref(self, style: str) -> RefAudio:
-        for ref in self.refs:
-            if any(word and word in style for word in ref.match):
-                return ref
-        return next((r for r in self.refs if r.default), self.refs[-1])
+        return pick_ref(self.refs, style)
 
     def cache_key(self) -> str:
         blob = json.dumps(
@@ -195,44 +181,31 @@ class GPTSoVITSTTS:
         url = f"{self.config.url.rstrip('/')}/tts"
         buf = b""
         header: tuple[int, int] | None = None
-        resampler = None
+        stream: PcmStream | None = None
         try:
             async with self._client.stream("POST", url, json=body) as resp:
                 if resp.status_code != 200:
                     detail = (await resp.aread()).decode("utf-8", "replace")[:500]
                     raise TTSError(f"GPT-SoVITS HTTP {resp.status_code}: {detail}")
                 async for data in resp.aiter_bytes():
-                    buf += data
-                    if header is None:
+                    if stream is None:
+                        buf += data
                         header = _parse_wav_header(buf)
                         if header is None:
                             continue
                         rate, start = header
-                        buf = buf[start:]
-                        if rate != SAMPLE_RATE:
-                            import soxr
-
-                            resampler = soxr.ResampleStream(rate, SAMPLE_RATE, 1, dtype="int16")
-                    cut = len(buf) - len(buf) % 2
-                    pcm, buf = buf[:cut], buf[cut:]
-                    if pcm:
-                        out = self._resample(resampler, pcm, last=False)
-                        if out:
-                            yield out
+                        stream = PcmStream(rate)
+                        data, buf = buf[start:], b""
+                    out = stream.push(data)
+                    if out:
+                        yield out
         except httpx.HTTPError as e:
             raise TTSError(f"连不上 GPT-SoVITS（{self.config.url}）：{e}") from e
-        if header is None:
+        if stream is None:
             raise TTSError("GPT-SoVITS 没有返回音频")
-        tail = self._resample(resampler, b"", last=True)
+        tail = stream.finish()
         if tail:
             yield tail
-
-    @staticmethod
-    def _resample(resampler, pcm: bytes, *, last: bool) -> bytes:
-        if resampler is None:
-            return pcm
-        x = np.frombuffer(pcm, dtype=np.int16)
-        return resampler.resample_chunk(x, last=last).astype(np.int16).tobytes()
 
     async def aclose(self) -> None:
         await self._client.aclose()

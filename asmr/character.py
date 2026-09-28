@@ -59,6 +59,7 @@ class Character:
     post_history_instructions: str = ""
     voice: str = ""
     gptsovits: dict = field(default_factory=dict)  # GPT-SoVITS 参考音频等配置，见 tts_gptsovits.py
+    cosyvoice: dict = field(default_factory=dict)  # CosyVoice 参考音频与语气指令，见 tts_cosyvoice.py
     style: str = ""
     position: Position = field(default_factory=Position)
     ambience: str = "rain"
@@ -114,6 +115,7 @@ def character_from_card(card: dict, card_id: str) -> Character:
         post_history_instructions=data.get("post_history_instructions", ""),
         voice=ext.get("voice", ""),
         gptsovits=ext.get("gptsovits") or {},
+        cosyvoice=ext.get("cosyvoice") or {},
         style=ext.get("style", ""),
         position=_parse_position(ext.get("position", "front, mid")),
         ambience=ext.get("ambience", "rain"),

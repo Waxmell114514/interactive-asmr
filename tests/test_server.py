@@ -66,3 +66,32 @@ def test_png_character_card(tmp_path):
     (tmp_path / "che.png").write_bytes(png)
     che = load_characters(tmp_path)["che"]
     assert che.name == "阿澈" and che.position.azimuth == "right" and che.position.distance == "near"
+
+
+def test_create_tts_picks_backend(tmp_path):
+    import json as _json
+
+    import pytest
+
+    from asmr.character import Character
+    from asmr.server import create_tts
+    from asmr.tts import GeminiTTS
+    from asmr.tts_gptsovits import GPTSoVITSTTS
+
+    plain = Character(id="a", name="甲")
+    assert isinstance(create_tts(Settings(), plain), GeminiTTS)
+
+    settings = Settings(tts_backend="gptsovits", gptsovits_url="http://gpu:9880")
+    with pytest.raises(RuntimeError, match="gptsovits"):
+        create_tts(settings, plain)
+
+    example = _json.loads((ROOT / "gptsovits.example.json").read_text(encoding="utf-8"))
+    del example["url"]
+    carded = Character(id="b", name="乙", gptsovits=example)
+    tts = create_tts(settings, carded)
+    assert isinstance(tts, GPTSoVITSTTS) and tts.config.url == "http://gpu:9880"
+
+    path = tmp_path / "g.json"
+    path.write_text(_json.dumps(example), encoding="utf-8")
+    settings.gptsovits_config = path
+    assert create_tts(settings, plain).config.pick_ref("耳语").audio.endswith("whisper.wav")

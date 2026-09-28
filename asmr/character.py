@@ -58,6 +58,7 @@ class Character:
     system_prompt: str = ""
     post_history_instructions: str = ""
     voice: str = ""
+    gptsovits: dict = field(default_factory=dict)  # GPT-SoVITS 参考音频等配置，见 tts_gptsovits.py
     style: str = ""
     position: Position = field(default_factory=Position)
     ambience: str = "rain"
@@ -112,6 +113,7 @@ def character_from_card(card: dict, card_id: str) -> Character:
         system_prompt=data.get("system_prompt", ""),
         post_history_instructions=data.get("post_history_instructions", ""),
         voice=ext.get("voice", ""),
+        gptsovits=ext.get("gptsovits") or {},
         style=ext.get("style", ""),
         position=_parse_position(ext.get("position", "front, mid")),
         ambience=ext.get("ambience", "rain"),

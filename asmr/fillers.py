@@ -26,9 +26,9 @@ FILLERS = [
 
 
 class FillerCache:
-    def __init__(self, directory: Path, *, model: str, voice: str):
+    def __init__(self, directory: Path, *, key: str):
         self._dir = directory
-        self._key = f"{model}|{voice}"
+        self._key = key  # 区分 TTS 后端 / 模型 / 音色，换音色就重新生成
         self._clips: list[bytes] = []
         self._lock = asyncio.Lock()
 
@@ -62,13 +62,18 @@ class FillerCache:
 
 
 async def _main() -> None:
+    import sys
+
+    from .character import load_characters
     from .config import Settings
-    from .tts import GeminiTTS
+    from .server import create_tts
 
     logging.basicConfig(level=logging.INFO)
     s = Settings.from_env()
-    tts = GeminiTTS(api_key=s.gemini_api_key, voice=s.tts_voice, model=s.tts_model, base_url=s.gemini_base_url)
-    cache = FillerCache(s.data_dir / "fillers", model=s.tts_model, voice=s.tts_voice)
+    characters = load_characters(s.characters_dir)
+    character = characters[sys.argv[1]] if len(sys.argv) > 1 else next(iter(characters.values()))
+    tts = create_tts(s, character)
+    cache = FillerCache(s.data_dir / "fillers", key=tts.cache_key)
     n = await cache.ensure(tts)
     await tts.aclose()
     print(f"应声词缓存：{n}/{len(FILLERS)} 条")

@@ -39,6 +39,44 @@ python -m asmr.fillers                         # 选定音色后预生成应声�
 
 关于 Spec 里“style 如何传给 TTS 才不会被念出来”这个待验证项：Gemini 3.8 TTS 的文档写明 `text` 按逐字稿处理，语气放进 `speech_metadata.style` 注解。所以默认用 `TTS_STYLE_MODE=annotation`；`prefix`（把 style 写进文本前缀）只留给 M0 对比试听。`synth` 两种都会生成，可以直接对比。
 
+## 完全离线：本地 TTS + 本地 LLM
+
+本地 TTS 有两个后端可选，用 `TTS_BACKEND` 切换：
+
+| | CosyVoice 3（`cosyvoice`） | GPT-SoVITS（`gptsovits`） |
+| --- | --- | --- |
+| 语气 `[style]` | 转成一句自然语言指令，模型直接按指令调整语气；同时按关键词挑参考音频 | 只能按关键词换参考音频 |
+| 声音事件 | `<sigh>` `<breath>` `<laugh>` `<cough>` 转成 `[sigh]` 等原生标记 | 去掉（停顿换成标点） |
+| 适合 | 希望语气随剧情变化 | 已经训练好某个音色的模型，要最像 |
+
+LLM 换成任意 OpenAI 兼容的本地服务即可，例如 Ollama：`LLM_BASE_URL=http://127.0.0.1:11434/v1`、`LLM_MODEL=qwen2.5:7b-instruct`。STT 本来就在本地跑。
+
+### CosyVoice 3
+
+1. 在 CosyVoice 仓库启动官方 FastAPI 服务：`cd runtime/python/fastapi && python server.py --port 50000 --model_dir pretrained_models/Fun-CosyVoice3-0.5B`
+2. 复制 `cosyvoice.example.json`，填上参考音频和每段音频里说的原话。官方服务要求**上传**参考音频，所以这里的路径是本项目所在机器上的路径
+3. `.env` 里设 `TTS_BACKEND=cosyvoice`、`COSYVOICE_CONFIG=cosyvoice.json`
+4. 先单独试听一句：`python -m asmr.tts_cosyvoice "嗯……今天辛苦了。" --style 耳语，很轻 -o test.wav`，命令会打印实际发出的指令
+
+有 style 时走 `/inference_instruct2`（参考音频定音色，指令定语气）；没有 style 时走 `/inference_zero_shot`，完全照着参考音频读。默认用模板把 style 变成“请用{style}的语气说这句话。”；`instructions` 里可以按关键词换成模型训练时见过的原句（比如 `Please say a sentence in a very soft voice.`），通常更稳。用 CosyVoice 2 时把 `version` 设为 2。
+
+### GPT-SoVITS
+
+1. 在 GPT-SoVITS 目录里启动 API：`python api_v2.py -a 127.0.0.1 -p 9880 -c GPT_SoVITS/configs/tts_infer.yaml`
+2. 复制 `gptsovits.example.json`，填上参考音频的路径和每段音频里说的原话。可以写 `gpt_weights` / `sovits_weights`，启动时自动切换到你的模型
+3. `.env` 里设置：
+   ```
+   TTS_BACKEND=gptsovits
+   GPTSOVITS_CONFIG=gptsovits.json
+   LLM_BASE_URL=http://127.0.0.1:11434/v1   # 例：Ollama
+   LLM_MODEL=qwen2.5:7b-instruct
+   ```
+4. 先单独试听一句：`python -m asmr.tts_gptsovits "嗯……今天辛苦了。" --style 耳语 -o test.wav`
+
+GPT-SoVITS 不接受语气描述，语气由参考音频决定。所以 `[style: ...]` 是**按关键词挑参考音频**的：style 里含 `match` 列表中的任一词，就用那段参考，都不匹配时用 `default`。从入睡中被叫醒时的回复会自动用“极轻的耳语”这个 style，所以耳语参考的 `match` 里至少要有“耳语”。`<sigh>` 这类声音事件 GPT-SoVITS 不认识：`<short pause>` 换成逗号，`<long pause>` 换成省略号，其余直接去掉。
+
+不同角色可以用不同的模型和参考音频：把同样结构的配置写进角色卡的 `extensions.asmr.gptsovits`，它的优先级高于 `GPTSOVITS_CONFIG`。
+
 ## 目录
 
 | 路径 | 内容 |
@@ -49,6 +87,8 @@ python -m asmr.fillers                         # 选定音色后预生成应声�
 | `asmr/session.py` | 单场会话的编排：轮次 → STT → LLM → 解析 → TTS → 下发；打断、独白、入睡；只把实际播出的句子写进历史 |
 | `asmr/turn.py` | Silero VAD + Smart Turn v3 轮次检测（用 Pipecat 附带的模型实现） |
 | `asmr/tts.py` | Gemini 3.8 TTS（Interactions API，SSE 流式，`speech_metadata.style`） |
+| `asmr/tts_cosyvoice.py` | CosyVoice 3 / 2 本地 TTS（style 转指令，声音事件转原生标记） |
+| `asmr/tts_gptsovits.py` | GPT-SoVITS 本地 TTS（按 style 挑参考音频，重采样到 24kHz） |
 | `asmr/stt.py` | SenseVoice（FunASR）/ faster-whisper |
 | `asmr/llm.py` | OpenAI 兼容的流式 LLM（DeepSeek / Gemini / Claude 等） |
 | `asmr/loudness.py` | 后端慢速自动增益，把耳语和正常音量拉到统一电平 |
@@ -102,7 +142,7 @@ python -m asmr.fillers                         # 选定音色后预生成应声�
 
 ## 还没做（M3 及以后）
 
-- M3 里的多角色卡已经支持（往 `characters/` 放卡即可）；其余还没做：SOFA 近场 HRTF、本地 CosyVoice 3 备选 TTS（目前 TTS 报错时跳过该段、会话继续）、跨会话长期记忆。
+- M3 里的多角色卡已经支持（往 `characters/` 放卡即可）；其余还没做：SOFA 近场 HRTF、TTS 出错时自动切换到备选（现在是手动三选一：Gemini、CosyVoice 或 GPT-SoVITS；出错时跳过该段、会话继续）、跨会话长期记忆。
 - 延迟和成本只按 Spec 估算过，没有真机实测；M0 脚本会测 TTS 首包，端到端延迟需要接上真实服务后再测。
 - X2 的 300ms：VAD 起步 200ms + 网络 + 前端淡出 120ms，理论上贴着上限，可以调低 `VAD_START_SECS` 换取更快的打断（代价是更容易被杂音打断）。
 - 手机锁屏后浏览器会挂起音频，v1 以桌面浏览器为准。

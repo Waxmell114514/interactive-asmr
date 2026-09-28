@@ -48,6 +48,13 @@ class Settings:
     llm_max_tokens: int = 300
     history_messages: int = 40
 
+    # TTS 后端：gemini | gptsovits | cosyvoice
+    tts_backend: str = "gemini"
+    gptsovits_url: str = "http://127.0.0.1:9880"
+    gptsovits_config: Path | None = None  # 角色卡没写 gptsovits 配置时用这个 JSON
+    cosyvoice_url: str = "http://127.0.0.1:50000"
+    cosyvoice_config: Path | None = None  # 角色卡没写 cosyvoice 配置时用这个 JSON
+
     # TTS：Gemini 3.8 Flash-Lite TTS + Voice Design 音色
     gemini_api_key: str = ""
     gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
@@ -100,6 +107,11 @@ class Settings:
             llm_temperature=_float("LLM_TEMPERATURE", d.llm_temperature),
             llm_max_tokens=_int("LLM_MAX_TOKENS", d.llm_max_tokens),
             history_messages=_int("LLM_HISTORY_MESSAGES", d.history_messages),
+            tts_backend=_env("TTS_BACKEND", d.tts_backend),
+            gptsovits_url=_env("GPTSOVITS_URL", d.gptsovits_url),
+            gptsovits_config=Path(_env("GPTSOVITS_CONFIG")) if _env("GPTSOVITS_CONFIG") else None,
+            cosyvoice_url=_env("COSYVOICE_URL", d.cosyvoice_url),
+            cosyvoice_config=Path(_env("COSYVOICE_CONFIG")) if _env("COSYVOICE_CONFIG") else None,
             gemini_api_key=_env("GEMINI_API_KEY"),
             gemini_base_url=_env("GEMINI_BASE_URL", d.gemini_base_url),
             tts_model=_env("TTS_MODEL", d.tts_model),

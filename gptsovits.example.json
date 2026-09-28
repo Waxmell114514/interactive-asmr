@@ -1,0 +1,22 @@
+{
+  "url": "http://127.0.0.1:9880",
+  "text_lang": "zh",
+  "speed_factor": 0.9,
+  "streaming_mode": 1,
+  "gpt_weights": "",
+  "sovits_weights": "",
+  "refs": [
+    {
+      "match": ["耳语", "气声", "悄悄", "极轻"],
+      "audio": "D:/GPT-SoVITS/refs/whisper.wav",
+      "text": "这里填耳语参考音频里说的原话。",
+      "lang": "zh"
+    },
+    {
+      "audio": "D:/GPT-SoVITS/refs/normal.wav",
+      "text": "这里填普通语气参考音频里说的原话。",
+      "lang": "zh",
+      "default": true
+    }
+  ]
+}

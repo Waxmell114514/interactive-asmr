@@ -51,14 +51,54 @@ class WebSocketTransport:
         await self._ws.close()
 
 
+def create_tts(settings: Settings, character: Character):
+    """按 TTS_BACKEND 为角色创建 TTS。本地后端的配置优先取角色卡，其次 *_CONFIG 指向的 JSON。"""
+    s = settings
+    if s.tts_backend == "cosyvoice":
+        from .tts_cosyvoice import CosyVoiceConfig, CosyVoiceTTS
+
+        if character.cosyvoice:
+            config = CosyVoiceConfig.from_dict(character.cosyvoice, url=s.cosyvoice_url)
+        elif s.cosyvoice_config:
+            config = CosyVoiceConfig.from_file(s.cosyvoice_config, url=s.cosyvoice_url)
+        else:
+            raise RuntimeError(
+                f"角色 {character.name} 没有 cosyvoice 配置：在角色卡 extensions.asmr.cosyvoice 里写，"
+                "或设置 COSYVOICE_CONFIG 指向配置 JSON"
+            )
+        return CosyVoiceTTS(config)
+    if s.tts_backend == "gptsovits":
+        from .tts_gptsovits import GPTSoVITSConfig, GPTSoVITSTTS
+
+        if character.gptsovits:
+            config = GPTSoVITSConfig.from_dict(character.gptsovits, url=s.gptsovits_url)
+        elif s.gptsovits_config:
+            config = GPTSoVITSConfig.from_file(s.gptsovits_config, url=s.gptsovits_url)
+        else:
+            raise RuntimeError(
+                f"角色 {character.name} 没有 gptsovits 配置：在角色卡 extensions.asmr.gptsovits 里写，"
+                "或设置 GPTSOVITS_CONFIG 指向配置 JSON"
+            )
+        return GPTSoVITSTTS(config)
+    if s.tts_backend == "gemini":
+        return GeminiTTS(
+            api_key=s.gemini_api_key,
+            voice=character.voice or s.tts_voice,
+            model=s.tts_model,
+            style_mode=s.tts_style_mode,
+            base_url=s.gemini_base_url,
+        )
+    raise ValueError(f"未知 TTS 后端: {s.tts_backend}（可选 gemini / gptsovits / cosyvoice）")
+
+
 class Runtime:
-    """进程级共享资源：STT 模型只加载一次；TTS 客户端和应声词缓存按音色复用。"""
+    """进程级共享资源：STT 模型只加载一次；TTS 客户端和应声词缓存按角色复用。"""
 
     def __init__(self, settings: Settings):
         self.settings = settings
         self._stt = None
         self._llm = None
-        self._tts: dict[str, GeminiTTS] = {}
+        self._tts: dict[str, object] = {}
         self._fillers: dict[str, FillerCache] = {}
         self._background: set[asyncio.Task] = set()
 
@@ -78,19 +118,13 @@ class Runtime:
         s = self.settings
         if self._stt is None:
             self.load()
-        voice = character.voice or s.tts_voice
-        if voice not in self._tts:
-            self._tts[voice] = GeminiTTS(
-                api_key=s.gemini_api_key,
-                voice=voice,
-                model=s.tts_model,
-                style_mode=s.tts_style_mode,
-                base_url=s.gemini_base_url,
-            )
-            cache = FillerCache(s.data_dir / "fillers", model=s.tts_model, voice=voice)
+        if character.id not in self._tts:
+            tts = create_tts(s, character)
+            cache = FillerCache(s.data_dir / "fillers", key=tts.cache_key)
             cache.load()
-            self._fillers[voice] = cache
-        tts, fillers = self._tts[voice], self._fillers[voice]
+            self._tts[character.id] = tts
+            self._fillers[character.id] = cache
+        tts, fillers = self._tts[character.id], self._fillers[character.id]
         if s.fillers:
             task = asyncio.get_running_loop().create_task(fillers.ensure(tts))
             self._background.add(task)

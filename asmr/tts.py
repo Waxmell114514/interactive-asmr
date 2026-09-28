@@ -59,6 +59,7 @@ class GeminiTTS:
     ):
         self.voice = voice
         self.model = model
+        self.cache_key = f"{model}|{voice}"
         self.style_mode = style_mode
         self._url = f"{base_url.rstrip('/')}/interactions"
         self._headers = {"x-goog-api-key": api_key, "Content-Type": "application/json"}

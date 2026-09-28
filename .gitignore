@@ -7,3 +7,4 @@ data/
 out/
 *.egg-info/
 .pytest_cache/
+refs/
